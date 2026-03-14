@@ -290,6 +290,8 @@ Prometheus metrics:
 http://127.0.0.1:5000/metrics
 ```
 
+![alt text](assets/image-12.png)
+
 ## Prometheus integration
 
 ```text
