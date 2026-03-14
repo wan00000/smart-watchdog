@@ -1,0 +1,21 @@
+Health status:
+[2026-03-14 09:40:06] TERMINAL_FAILURE url=https://example.com last_error=HTTPSConnectionPool(host='example.com', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPSConnection(host='example.com', port=443): Failed to resolve 'example.com' ([Errno -3] Temporary failure in name resolution)"))
+
+Suspicious IPs:
+2
+
+Blocked IPs:
+0
+
+Cleanup status:
+0 removed in last run
+
+Top IP addresses:
+10.0.0.2 3
+10.0.0.4 3
+10.0.0.1 2
+10.0.0.3 1
+10.0.0.5 1
+
+Generated at:
+2026-03-14 22:36:00

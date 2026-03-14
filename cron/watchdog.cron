@@ -1,0 +1,11 @@
+# Every 5 minutes: analyze access log and optionally block suspicious IPs.
+*/5 * * * * /home/smart-watchdog/scripts/analyze_top_ips.sh >/dev/null 2>&1
+
+# Every 10 minutes: cleanup recent files/folders inside DB_ROOT.
+*/10 * * * * /home/smart-watchdog/scripts/cleanup_recent.sh >/dev/null 2>&1
+
+# Every 15 minutes: rotate and archive aged reports.
+*/15 * * * * /home/smart-watchdog/scripts/rotate_reports.sh >/dev/null 2>&1
+
+# Every 2 minutes: one-shot health check + dashboard generation.
+*/2 * * * * /home/smart-watchdog/scripts/run_watchdog.sh 2 >/dev/null 2>&1
