@@ -280,6 +280,10 @@ Open in browser:
 http://127.0.0.1:5000/
 ```
 
+![alt text](assets/image-10.png)
+
+![alt text](assets/image-11.png)
+
 Prometheus metrics:
 
 ```text
