@@ -87,6 +87,16 @@ Behavior:
 - deeper paths are removed before parent directories
 - removals are logged to `CLEANUP_LOG_FILE`
 
+### `scripts/probe_ips.py`
+This step enriches the top IP list with extra probe details.
+
+Behavior:
+- reads up to `PROBE_TOP_N` targets
+- records IP properties such as version, private/global, loopback, reserved, and multicast
+- skips non-global IPs unless `PROBE_INCLUDE_PRIVATE=1`
+- can perform reverse DNS lookup when `PROBE_REVERSE_DNS=1`
+- can test TCP connectivity to configured ports when `PROBE_CONNECT_ENABLED=1`
+
 ### `scripts/health_check.py`
 Reads one integer pause time from stdin.
 
@@ -95,7 +105,17 @@ Behavior:
 - on HTTP 200, prints exactly `healthy`
 - on repeated failure past the allowed threshold, prints exactly `error`
 - appends detailed attempt logs to `HEALTH_LOG_FILE`
-- can trigger `alert.py` when email alerts are enabled
+- can trigger `alert.py` 
+
+### `scripts/alert.py`
+Connects to Postfix as the local SMTP server using port `25`. Postfix handles the actual mail relay.
+
+Behavior:
+- accepts 2 arguments: `<subject>` and `<message>`
+- uses `ALERT_EMAIL_FROM` and `ALERT_EMAIL_TO` for the message headers
+- sends both plain text and HTML email content
+- marks the HTML email as Critical Alert when the subject contains keywords such as `ALERT`, `CRITICAL`, `FAIL`, or `ERROR`
+- if SMTP sending fails, it prints `[ALERT FALLBACK] ...`
 
 ### `scripts/generate_dashboard.sh`
 Builds `reports/dashboard.txt` from the latest health, cleanup, suspicious, blocked, and top-IP reports.
@@ -202,6 +222,25 @@ cat reports/suspicious_ips_2026-03-14.txt
 ```
 ![alt text](assets/image.png)
 
+### Probe top IPs
+
+```bash
+python3 scripts/probe_ips.py
+```
+
+Output report:
+```bash
+cat reports/probe_2026-03-15.jsonl
+```
+
+![alt text](assets/image-24.png)
+
+```bash
+cat reports/probe_2026-03-15.log
+```
+
+![alt text](assets/image-25.png)
+
 ### Cleanup
 
 `DB_ROOT` was `/home/smart-watchdog/demo/database/db`
@@ -219,9 +258,9 @@ Before:
 
 ![alt text](assets/image-3.png)
 
-After (please adjust):
+After:
 
-![alt text](assets/image-4.png)
+![alt text](assets/image-26.png)
 
 ```bash
 cat reports/cleanup_2026-03-15.log
@@ -243,7 +282,8 @@ Output:
 
 - `error`
 
-  //add accordingly
+  Alert sent to Admin
+  ![alt text](assets/image-16.png)
 
 Log file:
 
@@ -251,7 +291,7 @@ Log file:
 cat reports/health_2026-03-14.log
 ```
 
-![alt text](assets/image-6.png)
+![alt text](assets/image-18.png)
 
 ### Generate text dashboard
 
@@ -260,7 +300,7 @@ cat reports/health_2026-03-14.log
 cat reports/dashboard.txt
 ```
 
-![alt text](assets/image-7.png)
+![alt text](assets/image-17.png)
 
 ### Run the full producer flow
 
@@ -280,9 +320,10 @@ Open in browser:
 http://127.0.0.1:5000/
 ```
 
-![alt text](assets/image-10.png)
-
-![alt text](assets/image-11.png)
+![alt text](assets/image-19.png)
+![alt text](assets/image-20.png)
+![alt text](assets/image-21.png)
+![alt text](assets/image-22.png)
 
 Prometheus metrics:
 
@@ -290,7 +331,7 @@ Prometheus metrics:
 http://127.0.0.1:5000/metrics
 ```
 
-![alt text](assets/image-12.png)
+![alt text](assets/image-23.png)
 
 ## Prometheus integration
 

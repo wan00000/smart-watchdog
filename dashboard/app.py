@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import glob
+import json
 import os
 import time
 from pathlib import Path
@@ -39,6 +40,7 @@ HTML_TEMPLATE = """
       --success: #22c55e;
       --warning: #eab308;
       --danger: #ef4444;
+      --info: #60a5fa;
       --radius: 12px;
     }
     
@@ -60,7 +62,6 @@ HTML_TEMPLATE = """
       .container { padding: 2rem; }
     }
     
-    /* Header */
     header {
       display: flex;
       flex-direction: column;
@@ -126,7 +127,6 @@ HTML_TEMPLATE = """
       color: var(--accent);
     }
     
-    /* Stats Grid */
     .stats-grid {
       display: grid;
       grid-template-columns: 1fr;
@@ -139,7 +139,7 @@ HTML_TEMPLATE = """
     }
     
     @media (min-width: 1024px) {
-      .stats-grid { grid-template-columns: repeat(4, 1fr); }
+      .stats-grid { grid-template-columns: repeat(3, 1fr); }
     }
     
     .stat-card {
@@ -186,6 +186,8 @@ HTML_TEMPLATE = """
     .stat-icon.suspicious { background: rgba(234, 179, 8, 0.15); color: var(--warning); }
     .stat-icon.blocked { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
     .stat-icon.cleanup { background: var(--accent-dim); color: var(--accent); }
+    .stat-icon.probe { background: rgba(96, 165, 250, 0.15); color: var(--info); }
+    .stat-icon.open { background: rgba(34, 197, 94, 0.15); color: var(--success); }
     
     .stat-value {
       font-size: 1.75rem;
@@ -198,8 +200,18 @@ HTML_TEMPLATE = """
       font-size: 0.75rem;
       color: var(--text-muted);
     }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (min-width: 1100px) {
+      .section-grid.two-col { grid-template-columns: 1.2fr 0.8fr; }
+    }
     
-    /* Section Titles */
     .section-title {
       font-size: 1.125rem;
       font-weight: 600;
@@ -217,7 +229,6 @@ HTML_TEMPLATE = """
       border-radius: 2px;
     }
     
-    /* Table */
     .table-wrapper {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -252,15 +263,19 @@ HTML_TEMPLATE = """
       padding: 0.875rem 1rem;
       border-bottom: 1px solid var(--border);
       font-size: 0.875rem;
+      vertical-align: top;
     }
     
     tr:last-child td { border-bottom: none; }
-    
     tr:hover td { background: rgba(34, 211, 187, 0.05); }
     
     .ip-cell {
       font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
       color: var(--accent);
+    }
+
+    .mono {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
     }
     
     .hits-cell {
@@ -289,6 +304,20 @@ HTML_TEMPLATE = """
       text-align: right;
       font-weight: 600;
     }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.2rem 0.6rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .status-probed { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+    .status-skipped_non_global, .status-unknown { background: rgba(234, 179, 8, 0.15); color: var(--warning); }
+    .status-invalid_ip { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
     
     .empty-state {
       text-align: center;
@@ -296,7 +325,6 @@ HTML_TEMPLATE = """
       color: var(--text-muted);
     }
     
-    /* Terminal / Pre block */
     .terminal {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -344,7 +372,6 @@ HTML_TEMPLATE = """
       overflow-y: auto;
     }
     
-    /* Footer */
     footer {
       margin-top: 2rem;
       padding-top: 1.5rem;
@@ -385,6 +412,7 @@ HTML_TEMPLATE = """
           </div>
         </div>
         <div class="stat-value" style="font-size: 1rem; word-break: break-word;">{{ health_status }}</div>
+        <div class="stat-description">Latest health log line</div>
       </div>
       
       <div class="stat-card">
@@ -425,35 +453,127 @@ HTML_TEMPLATE = """
         <div class="stat-value">{{ cleanup_count }}</div>
         <div class="stat-description">Removed in last run</div>
       </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-label">Probe Targets</span>
+          <div class="stat-icon probe">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-4.553a2 2 0 10-2.829-2.828L12.17 7.17m2.83 2.83L19.553 14.553a2 2 0 11-2.829 2.828L12.17 12.83m2.83-2.83L12.17 12.83m0 0l-4.553 4.553a2 2 0 01-2.828-2.828L9.34 10m2.83 2.83L7.617 8.277a2 2 0 012.828-2.828L15 10" />
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value">{{ probe_summary.total }}</div>
+        <div class="stat-description">Entries in latest probe report</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-label">Reachable Probe Ports</span>
+          <div class="stat-icon open">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value">{{ probe_summary.open_tcp }}</div>
+        <div class="stat-description">Successful TCP connect results</div>
+      </div>
     </div>
 
-    <h2 class="section-title">Top IPs by Request Count</h2>
+    <div class="section-grid two-col">
+      <div>
+        <h2 class="section-title">Top IPs by Request Count</h2>
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>IP Address</th>
+                  <th>Hits</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ip, hits in top_ips %}
+                <tr>
+                  <td class="ip-cell">{{ ip }}</td>
+                  <td>
+                    <div class="hits-cell">
+                      <div class="hits-bar">
+                        <div class="hits-fill" style="width: {{ (hits / (top_ips[0][1] if top_ips else 1)) * 100 }}%;"></div>
+                      </div>
+                      <span class="hits-value">{{ hits }}</span>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+                {% if not top_ips %}
+                <tr>
+                  <td colspan="2" class="empty-state">No report data available yet</td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="section-title">Probe Summary</h2>
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for status, count in probe_summary.status_counts.items() %}
+                <tr>
+                  <td><span class="status-badge status-{{ status|replace(' ', '_') }}">{{ status }}</span></td>
+                  <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+                {% if not probe_summary.status_counts %}
+                <tr>
+                  <td colspan="2" class="empty-state">No probe summary yet</td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Latest Probe Results</h2>
     <div class="table-wrapper">
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>IP Address</th>
+              <th>IP</th>
               <th>Hits</th>
+              <th>Status</th>
+              <th>Reverse DNS</th>
+              <th>Open Ports</th>
             </tr>
           </thead>
           <tbody>
-            {% for ip, hits in top_ips %}
+            {% for item in probe_results %}
             <tr>
-              <td class="ip-cell">{{ ip }}</td>
-              <td>
-                <div class="hits-cell">
-                  <div class="hits-bar">
-                    <div class="hits-fill" style="width: {{ (hits / (top_ips[0][1] if top_ips else 1)) * 100 }}%;"></div>
-                  </div>
-                  <span class="hits-value">{{ hits }}</span>
-                </div>
-              </td>
+              <td class="ip-cell">{{ item.ip }}</td>
+              <td>{{ item.hit_count }}</td>
+              <td><span class="status-badge status-{{ item.status|replace(' ', '_') }}">{{ item.status }}</span></td>
+              <td class="mono">{{ item.reverse_dns_display }}</td>
+              <td class="mono">{{ item.open_ports_display }}</td>
             </tr>
             {% endfor %}
-            {% if not top_ips %}
+            {% if not probe_results %}
             <tr>
-              <td colspan="2" class="empty-state">No report data available yet</td>
+              <td colspan="5" class="empty-state">No probe report data available yet</td>
             </tr>
             {% endif %}
           </tbody>
@@ -461,15 +581,32 @@ HTML_TEMPLATE = """
       </div>
     </div>
 
-    <h2 class="section-title">Latest Dashboard Output</h2>
-    <div class="terminal">
-      <div class="terminal-header">
-        <div class="terminal-dot red"></div>
-        <div class="terminal-dot yellow"></div>
-        <div class="terminal-dot green"></div>
-        <span class="terminal-title">dashboard.txt</span>
+    <div class="section-grid two-col">
+      <div>
+        <h2 class="section-title">Latest Probe Log</h2>
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">probe_*.log</span>
+          </div>
+          <pre>{{ probe_log_text }}</pre>
+        </div>
       </div>
-      <pre>{{ dashboard_text }}</pre>
+
+      <div>
+        <h2 class="section-title">Latest Dashboard Output</h2>
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">dashboard.txt</span>
+          </div>
+          <pre>{{ dashboard_text }}</pre>
+        </div>
+      </div>
     </div>
     
     <footer>
@@ -486,10 +623,15 @@ def latest_file(pattern: str) -> Path | None:
     return Path(matches[0]) if matches else None
 
 
-def read_lines(path: Path | None) -> list[str]:
+def read_text(path: Path | None) -> str:
     if not path or not path.exists():
-        return []
-    return path.read_text(encoding="utf-8").splitlines()
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def read_lines(path: Path | None) -> list[str]:
+    text = read_text(path)
+    return text.splitlines() if text else []
 
 
 def parse_ip_count_lines(lines: Iterable[str]) -> list[tuple[str, int]]:
@@ -503,6 +645,63 @@ def parse_ip_count_lines(lines: Iterable[str]) -> list[tuple[str, int]]:
             except ValueError:
                 continue
     return output
+
+
+def parse_probe_results() -> list[dict]:
+    path = latest_file("probe_*.jsonl")
+    if not path:
+        return []
+
+    results: list[dict] = []
+    for raw_line in read_lines(path):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        reverse_dns = item.get("reverse_dns") or {}
+        if isinstance(reverse_dns, dict) and reverse_dns.get("ok"):
+            reverse_dns_display = str(reverse_dns.get("hostname") or "ok")
+        elif isinstance(reverse_dns, dict) and reverse_dns.get("error"):
+            reverse_dns_display = f"error: {reverse_dns.get('error')}"
+        else:
+            reverse_dns_display = "n/a"
+
+        open_ports: list[str] = []
+        for tcp_item in item.get("tcp_connect", []) or []:
+            if tcp_item.get("ok"):
+                open_ports.append(str(tcp_item.get("port")))
+        open_ports_display = ", ".join(open_ports) if open_ports else "none"
+
+        results.append(
+            {
+                "ip": str(item.get("ip", "")),
+                "hit_count": int(item.get("hit_count", 0) or 0),
+                "status": str(item.get("status", "unknown")),
+                "reverse_dns_display": reverse_dns_display,
+                "open_ports_display": open_ports_display,
+            }
+        )
+    return results
+
+
+def probe_summary() -> dict:
+    results = parse_probe_results()
+    status_counts: dict[str, int] = {}
+    open_tcp = 0
+    for item in results:
+        status = item["status"]
+        status_counts[status] = status_counts.get(status, 0) + 1
+        if item["open_ports_display"] != "none":
+            open_tcp += len([p for p in item["open_ports_display"].split(", ") if p])
+    return {
+        "total": len(results),
+        "open_tcp": open_tcp,
+        "status_counts": dict(sorted(status_counts.items())),
+    }
 
 
 def latest_health_status() -> str:
@@ -539,12 +738,23 @@ def dashboard_text() -> str:
     return DASHBOARD_FILE.read_text(encoding="utf-8")
 
 
+def probe_log_text() -> str:
+    path = latest_file("probe_*.log")
+    lines = read_lines(path)
+    if not lines:
+        return "No probe log yet."
+    return "\n".join(lines[-20:])
+
+
 def build_metrics() -> bytes:
     registry = CollectorRegistry()
     gauge_health = Gauge("watchdog_health_up", "Health status from latest health log, 1 means healthy", registry=registry)
     gauge_cleanup = Gauge("watchdog_cleanup_removed_last_run", "Items removed by the most recent cleanup run", registry=registry)
     gauge_suspicious = Gauge("watchdog_suspicious_ip_count", "Suspicious IPs found in the latest report", registry=registry)
     gauge_blocked = Gauge("watchdog_blocked_ip_count", "Blocked IPs recorded in the latest block report", registry=registry)
+    gauge_probe_total = Gauge("watchdog_probe_target_count", "Entries in the latest probe report", registry=registry)
+    gauge_probe_open = Gauge("watchdog_probe_open_tcp_count", "Successful TCP connect checks in the latest probe report", registry=registry)
+    gauge_probe_status = Gauge("watchdog_probe_status_count", "Probe result count by status", ["status"], registry=registry)
     gauge_report_age = Gauge("watchdog_report_age_seconds", "Age in seconds of the latest report file", ["report_type"], registry=registry)
     gauge_top_ip_hits = Gauge("watchdog_top_ip_hits", "Hit counts for IPs in the latest top-IP report", ["ip"], registry=registry)
 
@@ -554,12 +764,20 @@ def build_metrics() -> bytes:
     gauge_suspicious.set(suspicious_count())
     gauge_blocked.set(blocked_count())
 
+    summary = probe_summary()
+    gauge_probe_total.set(summary["total"])
+    gauge_probe_open.set(summary["open_tcp"])
+    for status, count in summary["status_counts"].items():
+        gauge_probe_status.labels(status=status).set(count)
+
     for report_type, pattern in {
         "top_ips": "top_ips_*.txt",
         "suspicious": "suspicious_ips_*.txt",
         "blocked": "blocked_ips_*.txt",
         "cleanup": "cleanup_*.log",
         "health": "health_*.log",
+        "probe_report": "probe_*.jsonl",
+        "probe_log": "probe_*.log",
     }.items():
         path = latest_file(pattern)
         age = time.time() - path.stat().st_mtime if path and path.exists() else -1
@@ -581,6 +799,9 @@ def index() -> str:
         blocked_count=blocked_count(),
         cleanup_count=cleanup_count(),
         top_ips=top_ips(),
+        probe_summary=probe_summary(),
+        probe_results=parse_probe_results(),
+        probe_log_text=probe_log_text(),
         dashboard_text=dashboard_text(),
     )
 
